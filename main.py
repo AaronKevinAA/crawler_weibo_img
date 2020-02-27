@@ -1,5 +1,6 @@
 import datetime
 import os
+import sys
 import time
 from urllib.parse import urlencode
 import utils
@@ -12,7 +13,7 @@ img_min = 10
 # 收集图片张数
 img_count = 0
 # 收集图片地址
-imgs = []
+imgs = {}
 # 下一次收集页面id
 since_id = ''
 # 头请求
@@ -72,7 +73,7 @@ def get_page_img():
             for i in range(0, pic_num):
                 img_url = card['mblog']['pics'][i]['large']['url']
                 img_count += 1
-                imgs.append(img_url)
+                imgs[card['mblog']['pics'][i]['pid']] = img_url
 
 
 # 开始程序
@@ -101,13 +102,14 @@ def start():
                     time.sleep(60)
             else:
                 if fail_count <= 3:
-                    get_single_page(since_id)
                     print('[' + utils.now_time() + ']网络较差，页面访问失败，第' + str(fail_count) + '次重试')
+                    get_single_page(since_id)
                     fail_count += 1
                 else:
                     print('[' + utils.now_time() + ']页面访问失败，退出程序')
     except Exception as e:
         print('[' + utils.now_time() + ']系统发生错误，退出程序')
+        sys.exit()
 
 
 # 结果写入txt
@@ -119,7 +121,27 @@ def into_log():
         + user_id + ',next_since_id=' + str(since_id) + ')\n'
     fp.write(s)
     for pic in imgs:
-        fp.write(pic + '\n')
+        fp.write(imgs[pic] + '\n')
+    fp.close()
+
+
+def download_img():
+    success = 0
+    path = os.path.join(os.getcwd(), 'imgs')
+    if not os.path.exists(path):
+        os.mkdir(path)
+    for img_name in imgs:
+        img_dict = imgs[img_name]
+        try:
+            img_data = requests.get(img_dict).content
+            with open(os.path.join(path, img_name + '.jpg'), 'wb') as file:
+                file.write(img_data)
+                file.close()
+                success += 1
+        except Exception as e:
+            print('[' + utils.now_time() + ']网络较差，页面访问失败，下载图片失败')
+
+    print('[' + utils.now_time() + ']成功下载' + str(success) + '张图片!')
 
 
 if __name__ == '__main__':
@@ -155,4 +177,10 @@ if __name__ == '__main__':
     print('[' + utils.now_time() + ']收集完成，图片地址如下：')
     for img in imgs:
         print(img)
+
+    print('[' + utils.now_time() + ']是否下载图片到本地?')
+    if bool(input()):
+        print('[' + utils.now_time() + ']正在下载图片中...')
+        download_img()
+
     print('[' + utils.now_time() + ']结果已保存在result.txt，感谢你的使用!')

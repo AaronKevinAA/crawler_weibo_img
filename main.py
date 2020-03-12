@@ -20,6 +20,8 @@ since_id = ''
 headers = {}
 # 页面返回json数据
 json = ''
+# 用户选择个人主页或超话
+input_cho = -1
 
 
 # 获取微博用户id
@@ -27,10 +29,16 @@ def get_userID(url):
     global user_id
     weibo = url.find('weibo')
     if weibo != -1:
-        u = url.find('/u/')
-        if u != -1:
-            user_id = url[u + 3:][0:10]
-            return True
+        if input_cho == 1:
+            u = url.find('/u/')
+            if u != -1:
+                user_id = url[u + 3:][0:10]
+                return True
+        else:
+            p = url.find('/p/')
+            if p != -1:
+                user_id = url[p + 3:][0:38]
+                return True
     return False
 
 
@@ -43,11 +51,16 @@ def get_sinceID(id):
 # 获得页面返回数据
 def get_single_page(since_id):
     global json
-    params = {
-        'type': 'uid',
-        'uid': user_id,
-        'containerid': int('107603' + user_id),
-    }
+    if input_cho == 1:
+        params = {
+            'type': 'uid',
+            'uid': user_id,
+            'containerid': int('107603' + user_id),
+        }
+    else:
+        params = {
+            'containerid': str(user_id + '_-_feed'),
+        }
     if since_id != '':
         params['since_id'] = since_id
     url = utils.base_url + urlencode(params)
@@ -62,11 +75,27 @@ def get_single_page(since_id):
 
 # 从返回页面中获得图片
 def get_page_img():
+    cards = []
     global img_count, since_id, json
-    since_id = json['data']['cardlistInfo']['since_id']
-    cards = json['data']['cards']
+    if input_cho == 1:
+        since_id = json['data']['cardlistInfo']['since_id']
+        cards = json['data']['cards']
+    else:
+        if since_id == '':
+            cards_id = json['data']['cards']
+            for card in cards_id:
+                if "card_group" in card:
+                    for c in card['card_group']:
+                        cards.append(c)
+                else:
+                    pass
+        else:
+            cards = json['data']['cards'][0]['card_group']
+        since_id = json['data']['pageInfo']['since_id']
+
     for card in cards:
-        if card['card_type'] == 9:
+        print(card['card_type'])
+        if card['card_type'] == str(9):
             pic_num = card['mblog']['pic_num']
             if pic_num > 9:
                 pic_num = 9
@@ -85,6 +114,8 @@ def start():
         'Referer': 'https://m.weibo.cn/api/container/getIndex?uid=' + user_id + '&containerid=107603' + user_id,
         'User-Agent': utils.user_agent
     }
+    if input_cho == 2:
+        headers['Referer'] = 'https://m.weibo.cn/api/container/getIndex?containerid=' + user_id + '_-_feed'
 
     try:
         while img_count <= img_min:
@@ -108,6 +139,7 @@ def start():
                 else:
                     print('[' + utils.now_time() + ']页面访问失败，退出程序')
     except Exception as e:
+        print(e)
         print('[' + utils.now_time() + ']系统发生错误，退出程序')
         sys.exit()
 
@@ -141,13 +173,25 @@ def download_img():
         except Exception as e:
             print('[' + utils.now_time() + ']网络较差，页面访问失败，下载图片失败')
 
-    print('[' + utils.now_time() + ']成功下载' + str(success) + '张图片!')
+    print('[' + utils.now_time() + ']成功下载' + str(success) + '张图片,保存在imgs目录下！')
 
 
 if __name__ == '__main__':
-    print('----------------------------------欢迎使用 StarFollow 1.0版-------------------------------------')
-    print('[' + utils.now_time() + ']请输入你想要收集的微博主页地址：')
-    print('[' + utils.now_time() + ']例如https://m.weibo.cn/u/xxxxxxxxxx... 或https://weibo.com/u/xxxxxxxxxx...')
+    print('----------------------------------欢迎使用 StarFollow 2.0版-------------------------------------')
+    print('[' + utils.now_time() + ']请选择是收集个人主页还是超话？(1.个人主页 2.超话)')
+    input_cho = utils.is_number(input())
+    while input_cho == -1:
+        if input_cho == 1 or input_cho == 2:
+            break
+        print('[' + utils.now_time() + ']输入1或2！请重新输入：')
+        input_cho = utils.is_number(input())
+
+    if input_cho == 1:
+        print('[' + utils.now_time() + ']请输入你想要收集的个人主页地址：')
+        print('[' + utils.now_time() + ']例如https://m.weibo.cn/u/xxxxxxxxxx... 或https://weibo.com/u/xxxxxxxxxx...')
+    else:
+        print('[' + utils.now_time() + ']请输入你想要收集的超话地址：')
+        print('[' + utils.now_time() + ']例如https://m.weibo.cn/p/xxxxxxxxxx... 或https://weibo.com/p/xxxxxxxxxx...')
     input_url = input()
     print('[' + utils.now_time() + ']正在检查地址格式...')
     while not get_userID(input_url):
@@ -175,11 +219,17 @@ if __name__ == '__main__':
     into_log()
 
     print('[' + utils.now_time() + ']收集完成，图片地址如下：')
-    for img in imgs:
+    for img in imgs.values():
         print(img)
 
-    print('[' + utils.now_time() + ']是否下载图片到本地?')
-    if bool(input()):
+    print('[' + utils.now_time() + ']是否下载图片到本地?(1.是 2.否)')
+    input_down = utils.is_number(input())
+    while input_down == -1:
+        if input_down == 1 or input_down == 2:
+            break
+        print('[' + utils.now_time() + ']输入1或2！请重新输入：')
+        input_down = utils.is_number(input())
+    if input_down == 1:
         print('[' + utils.now_time() + ']正在下载图片中...')
         download_img()
 
